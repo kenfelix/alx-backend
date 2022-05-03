@@ -29,7 +29,7 @@ class FIFOCache(BaseCaching):
             else:
                 self.cache_data[key] = item
                 discard = self.queue[0]
-                del self.cache_data[discard], discard
+                del self.cache_data[self.queue[0]], self.queue[0]
                 self.queue.append(key)
                 print(f'DISCARD: {discard}')
 
