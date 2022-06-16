@@ -1,104 +1,91 @@
 #!/usr/bin/env python3
-
 """
-7. Basic Flask app
+Module 5-app
 """
-
-
 from flask import Flask, render_template, request, g
 from flask_babel import Babel
-import pytz
-from pytz.exceptions import UnknownTimeZoneError
+import pytz.exceptions
+from pytz import timezone
 
-app = Flask(__name__)
-babel = Babel(app)
-
-
-class Config:
-    """
-    Config class.
-    """
-    LANGUAGES = ["en", "fr"]
-    BABEL_DEFAULT_LOCALE = "en"
-    BABEL_DEFAULT_TIMEZONE = "UTC"
-
-
-app.config.from_object(Config)
 
 users = {
-    1: {"name": "Balou", "locale": "fr", "timezone": "Europe/Paris"},
-    2: {"name": "Beyonce", "locale": "en", "timezone": "US/Central"},
-    3: {"name": "Spock", "locale": "kg", "timezone": "Vulcan"},
-    4: {"name": "Teletubby", "locale": None, "timezone": "Europe/London"},
+        1: {"name": "Balou", "locale": "fr", "timezone": "Europe/Paris"},
+        2: {"name": "Beyonce", "locale": "en", "timezone": "US/Central"},
+        3: {"name": "Spock", "locale": "kg", "timezone": "Vulcan"},
+        4: {"name": "Teletubby", "locale": None, "timezone": "Europe/London"},
 }
 
 
-def get_user(login_as):
-    """
-    get_user.
-    """
-    try:
-        return users.get(int(login_as))
-    except Exception:
-        return
+class Config(object):
+    """i18n configuration"""
+    LANGUAGES = ['en', 'fr']
+    BABEL_DEFAULT_LOCALE = 'en'
+    BABEL_DEFAULT_TIMEZONE = 'UTC'
 
 
-@app.before_request
-def before_request():
-    """
-    before_request
-    """
-    g.user = get_user(request.args.get("login_as"))
+app = Flask(__name__)
+app.config.from_object(Config)
+babel = Babel(app)
+
+
+@app.route("/", strict_slashes=False)
+def index():
+    """displays a basic hello world message"""
+    return render_template("5-index.html")
 
 
 @babel.localeselector
 def get_locale():
-    """
-    get_locale.
-    """
-    locale = request.args.get("locale")
-    if locale:
+    """Gets best fmatch locale according to request"""
+    locale = request.args.get('locale')
+    if locale and locale in app.config['LANGUAGES']:
         return locale
-    user = request.args.get("login_as")
-    if user:
-        lang = users.get(int(user)).get('locale')
-        if lang in app.config['LANGUAGES']:
-            return lang
-    headers = request.headers.get("locale")
-    if headers:
-        return headers
+
+    if g.user:
+        locale = g.user.get('locale')
+        if locale in app.config['LANGUAGES']:
+            return locale
+
+    locale = request.headers.get('locale')
+
+    if locale and locale in app.config['LANGUAGES']:
+        return locale
+
     return request.accept_languages.best_match(app.config['LANGUAGES'])
 
 
 @babel.timezoneselector
 def get_timezone():
-    """
-    get_timezone.
-    """
-    try:
-        timezone = request.args.get("timezone")
-        if timezone:
-            return pytz.timezone(timezone)
-        user = request.args.get("login_as")
-        if user:
-            timezone = users.get(int(user)).get('timezone')
-            if timezone:
-                return pytz.timezone(timezone)
-        timezone = request.headers.get("timezone")
-        if timezone:
-            return pytz.timezone(timezone)
-    except UnknownTimeZoneError:
-        return app.config.get('BABEL_DEFAULT_TIMEZONE')
-    return app.config.get('BABEL_DEFAULT_TIMEZONE')
+    """determines correct time_zone"""
+    t_zone = request.args.get('timezone', None)
+
+    if t_zone:
+        try:
+            return timezone(t_zone).zone
+        except pytz.exceptions.UnknownTimeZoneError:
+            return 'UTC'
+
+    default = app.config['BABEL_DEFAULT_TIMEZONE']
+
+    return request.accept_languages.best_match(default)
 
 
-@app.route('/', methods=["GET"], strict_slashes=False)
-def hello():
-    """
-    hello.
-    """
-    return render_template('7-index.html')
+def get_user():
+    """returns a given user"""
+    user_id = request.args.get('login_as')
+
+    if user_id is None:
+        return None
+
+    return users.get(int(user_id))
+
+
+@app.before_request
+def before_request():
+    """sets a user object to flask.g"""
+    user = get_user()
+    g.user = user
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port="5000")
+    app.run(debug=True, host="0.0.0.0", port="5000")
